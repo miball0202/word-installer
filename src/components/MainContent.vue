@@ -6,24 +6,39 @@
     >
       <v-col>
         <v-card outlined>
-          <v-card-text justify-center>
+          <v-card-text class="text-center">
             {{ word }}
           </v-card-text>
         </v-card>
       </v-col>
     </v-row>
+    <br>
     <v-card>
       <v-container>
         <v-textarea
           outlined
           label="速読したい文章"
           v-model="text"
-          :disabled="load"
         />
+        <v-label
+          small
+        >
+        <span v-if="convertedText.length > 0">
+          {{ Number(progress).toFixed() }}
+        </span>
+        <span v-else>
+          0
+        </span>
+         / 100%
+        </v-label>
+        <v-progress-linear
+          color="light-blue"
+          :value="progress"
+        />
+        <br>
         <v-btn
           outlined
           color="primary"
-          :disabled="load"
           @click.prevent="convertTextToWord"
         >
           読み込み
@@ -32,10 +47,25 @@
           v-if="convertedText.length > 0"
           outlined
           color="success"
-          :disabled="load"
           @click.prevent="runWordInstaller"
         >
-          速読開始
+          再生
+        </v-btn>
+        <v-btn
+          v-if="running || convertedText.length > 0"
+          outlined
+          color="yellow"
+          @click.prevent="pauseRunner"
+        >
+          一時停止
+        </v-btn>
+        <v-btn
+          v-if="running || convertedText.length > 0"
+          outlined
+          color="error"
+          @click.prevent="stopRunner"
+        >
+          停止
         </v-btn>
       </v-container>
     </v-card>
@@ -48,8 +78,17 @@
           label="速度(ms)"
         ></v-text-field>
         <v-slider
-          max="2000"
+          max="500"
           v-model="timeInterval"
+        ></v-slider>
+        <v-text-field
+          v-model="range"
+          type="number"
+          label="最大文字数"
+        ></v-text-field>
+        <v-slider
+          max="25"
+          v-model="range"
         ></v-slider>
       </v-container>
     </v-card>
@@ -69,8 +108,21 @@ export default {
       convertedText: [],
       runnerIndex: 0,
       timeInterval: 500,
+      range: 15,
       stop: false,
-      load: false
+      load: false,
+      running: false
+    }
+  },
+  computed: {
+    progress() {
+      return (this.runnerIndex / this.convertedText.length) * 100
+    },
+    separated() {
+      return (this.convertedText[this.runnerIndex - 1] === '。') || (this.convertedText[this.runnerIndex - 1] === '、')
+    },
+    shouldStop() {
+      return (this.runnerIndex >= this.convertedText.length) || !this.running
     }
   },
   methods: {
@@ -83,23 +135,41 @@ export default {
     },
     runWordInstaller() {
       this.load = true;
-      this.runnerIndex = 0;
+      this.running = true;
 
       let interval = setInterval(() => {
         this.runner();
-        if (this.runnerIndex >= this.convertedText.length || this.stop) {
+        if (this.shouldStop) {
           clearInterval(interval);
         }
       }, this.timeInterval)
-
-      this.load = false;
     },
     runner() {
-      this.word = this.convertedText[this.runnerIndex]
-      this.runnerIndex++
+      let displayWord = ""
+      while (displayWord.length <= this.range) {
+        if (!this.convertedText[this.runnerIndex]) {
+          this.load = false;
+          this.running = false;
+          this.runnerIndex = 0;
+          break;
+        }
+
+        displayWord += this.convertedText[this.runnerIndex]
+        this.runnerIndex++
+
+        if (this.separated) {
+          break;
+        }
+      }
+      this.word = displayWord;
     },
-    sleep(ms) {
-      return new Promise((resolve) => setTimeout(resolve, ms));
+    stopRunner() {
+      this.running = false;
+      this.runnerIndex = 0;
+      this.word = 'ここにワードが表示されます';
+    },
+    pauseRunner() {
+      this.running = false;
     }
   }
 }
