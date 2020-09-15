@@ -96,8 +96,7 @@
 </template>
 
 <script>
-import TinySegmenter from 'tiny-segmenter'
-const segmenter = new TinySegmenter()
+import kuromoji from 'kuromoji'
 
 export default {
   name: 'MainContent',
@@ -107,29 +106,33 @@ export default {
       text: '',
       convertedText: [],
       runnerIndex: 0,
-      timeInterval: 500,
-      range: 15,
+      timeInterval: 300,
+      range: 7,
       stop: false,
       load: false,
-      running: false
+      running: false,
+      builder: kuromoji.builder({ dictPath: '/dict' })
     }
   },
   computed: {
     progress() {
       return (this.runnerIndex / this.convertedText.length) * 100
     },
-    separated() {
-      return (this.convertedText[this.runnerIndex - 1] === '。') || (this.convertedText[this.runnerIndex - 1] === '、')
-    },
     shouldStop() {
       return (this.runnerIndex >= this.convertedText.length) || !this.running
     }
   },
   methods: {
-    convertTextToWord() {
+    async convertTextToWord() {
       this.load = true;
 
-      this.convertedText = segmenter.segment(this.text);
+      await this.builder.build((err, tokenizer) => {
+        if (err) {
+          throw err
+        } else {
+          this.convertedText = tokenizer.tokenize(this.text)
+        }
+      });
 
       this.load = false;
     },
@@ -146,7 +149,8 @@ export default {
     },
     runner() {
       let displayWord = ""
-      while (displayWord.length <= this.range) {
+      let analyzing = true
+      while (analyzing) {
         if (!this.convertedText[this.runnerIndex]) {
           this.load = false;
           this.running = false;
@@ -154,11 +158,23 @@ export default {
           break;
         }
 
-        displayWord += this.convertedText[this.runnerIndex]
+        let currentObj = this.convertedText[this.runnerIndex]
+        let posDetial1 = currentObj.pos_detail_1
+        let pos = currentObj.pos
+
+        if (posDetial1 === "読点" || posDetial1 === "句点" || posDetial1 === "括弧閉") {
+          analyzing = false;
+        }
+
+        displayWord += currentObj.surface_form
         this.runnerIndex++
 
-        if (this.separated) {
-          break;
+        if (displayWord.length >= 3 && (pos === '名詞' || pos === '副詞' || pos === '連体詞' || pos === '動詞' || pos === '助詞')) {
+          analyzing = false;
+        }
+
+        if (displayWord.length >= this.range) {
+          analyzing = false
         }
       }
       this.word = displayWord;
@@ -170,7 +186,7 @@ export default {
     },
     pauseRunner() {
       this.running = false;
-    }
+    },
   }
 }
 </script>
